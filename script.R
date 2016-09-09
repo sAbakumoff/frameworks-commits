@@ -1,6 +1,7 @@
 library(dplyr)
 library(stringr)
 library(tidytext)
+library(wordcloud)
 data("stop_words")
 
 react_angular_commits<-read.csv("react_angular_commits.csv")  %>% 
@@ -31,3 +32,21 @@ tidy_commits %>% filter(name=="react") %>% count(word, sort = TRUE) %>%
   geom_bar(stat = "identity", fill=I("#53d2fa")) +
   labs(y="Occurrences", title="Most Common Words in React Commit Messages") +
   coord_flip()
+
+angular_commits_type_scope <- react_angular_commits %>% 
+  filter(name=="angular.js", str_detect(message, "^(feat|fix|docs|style|refactor|test|chore)\\s*\\(")) %>%
+  mutate(type=str_sub(message, start=0, end=regexpr( "\\(", message ) - 1), 
+         scope=str_sub(message, start=regexpr( "\\(", message ) + 1, end=regexpr( "\\)", message ) - 1)) %>%
+  select(type, scope) #%>%
+  #count(type, scope, sort=TRUE) %>%
+  #filter(n>=30)
+
+angular_commits_type_scope %>% count(scope) %>% with(wordcloud(scope, n, max.words = 50))
+
+top_scope<-angular_commits_type_scope %>% count(scope, sort=TRUE) %>% head(10)
+
+tt <- angular_commits_type_scope %>% inner_join(top_scope)
+
+ggplot(tt, aes(type, n, fill = scope)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "", y = "Number of commits", fill = "")
