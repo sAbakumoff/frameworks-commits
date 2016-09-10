@@ -50,3 +50,18 @@ tt <- angular_commits_type_scope %>% inner_join(top_scope)
 ggplot(tt, aes(type, n, fill = scope)) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(x = "", y = "Number of commits", fill = "")
+
+bing <- sentiments %>% filter(lexicon == "bing") %>% select(-score)
+
+angular_word_counts<-tidy_commits %>% 
+  filter(name=="angular.js") %>% 
+  inner_join(bing) %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  ungroup()
+angular_word_counts %>% filter(n > 50) %>%
+       mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+       mutate(word = reorder(word, n)) %>%
+       ggplot(aes(word, n, fill = sentiment)) +
+       geom_bar(stat = "identity") +
+       ylab("Contribution to sentiment") + 
+       coord_flip()
