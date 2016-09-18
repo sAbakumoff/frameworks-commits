@@ -1,0 +1,124 @@
+---
+title: "Angular vs React: text analysis of commit messages"
+author: "@sAbakumoff"
+date: "September 18, 2016"
+output: word_document
+---
+
+# Loading and shaping data
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(stringr)
+react_angular_commits<-read.csv("react_angular_commits.csv")  %>% 
+  mutate(message=str_replace_all(message, "\n", " "), 
+         message_len=str_length(message), 
+         name=str_sub(repo_name, start=regexpr('/', repo_name) + 1))
+```
+
+# Length of the commit messages:
+```{r}
+boxplot(message_len ~ name, react_angular_commits, outline=FALSE, horizontal=TRUE, las=2, 
+        col=c("#d20013", "#53d2fa"), main="Length of the commits messages", par(mar=c(5,6,4,6)))
+```
+
+# Split commit messages to words
+```{r}
+library(tidytext)
+data("stop_words")
+tidy_commits <- react_angular_commits %>% 
+  select(name, message) %>% 
+  unnest_tokens(word, message) %>% 
+  anti_join(stop_words)
+```
+
+# Most common words in Angular commits messages
+```{r}
+library(ggplot2)
+tidy_commits %>% 
+      filter(name=="angular.js") %>% 
+      count(word, sort = TRUE) %>%
+      head(15) %>%
+      mutate(word = reorder(word, n)) %>%
+      ggplot(aes(word, n)) +
+      geom_bar(stat = "identity", fill=I("#d20013")) +
+      labs(y="Occurrences", 
+      title="Most Common Words in Angular Commit Messages") +
+      coord_flip()
+```
+
+# Angular top changes and scopes
+```{r}
+angular_commits_type_scope <- react_angular_commits %>% 
+  filter(name=="angular.js", 
+         str_detect(message, "^(feat|fix|docs|style|refactor|test|chore)\\s*\\(")) %>%
+  mutate(type=trimws(str_sub(message, start=0, end=regexpr( "\\(", message ) - 1)), 
+         scope=trimws(str_sub(message, 
+                       start=regexpr( "\\(", message ) + 1, 
+                       end=regexpr( "\\)", message ) - 1))) %>%
+  select(type, scope)
+
+top_scope<-angular_commits_type_scope %>% 
+  count(scope, sort=TRUE) %>% 
+  head(10) %>% 
+  select(-n)
+
+angular_commits_type_scope %>% 
+  inner_join(top_scope) %>%
+  count(type, scope) %>%
+  ggplot(aes(type, n, fill = scope)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "", y = "Number of commits", fill = "")
+```
+
+# Most common words in React commit messages
+```{r}
+tidy_commits %>% 
+  filter(name=="react") %>% 
+  count(word, sort = TRUE) %>%
+  head(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_bar(stat = "identity", fill=I("#53d2fa")) +
+  labs(y="Occurrences", title="Most Common Words in React Commit Messages") +
+  coord_flip()
+```
+
+# tf-idf analysis of React commit message
+```{r}
+custom_stop_words<-data.frame("word"=c("merge", "pull", "request"))
+tidy_commits<-tidy_commits %>% anti_join(custom_stop_words)
+
+commit_words<-tidy_commits %>% 
+  count(name, word, sort=TRUE) %>% 
+  ungroup() %>% 
+  bind_tf_idf(word, name, n) %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = reorder(word, tf_idf))
+
+commit_words %>% 
+  filter(name=="react") %>% top_n(20) %>% ggplot(aes(word, tf_idf)) +
+  geom_bar(stat = "identity", fill=I("#53d2fa")) +
+  labs(y="tf-idf", title="Highest tf-idf words in React Commit Messages") +
+  coord_flip()
+```
+
+# Sentiment analysis of Angular Commit Message
+```{r}
+bing <- sentiments %>% 
+filter(lexicon == "bing") %>% 
+select(-score)
+
+angular_word_counts<-tidy_commits %>% 
+  filter(name=="angular.js") %>% 
+  inner_join(bing) %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  ungroup()
+
+angular_word_counts %>% filter(n > 50) %>%
+       mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+       mutate(word = reorder(word, n)) %>%
+       ggplot(aes(word, n, fill = sentiment)) +
+       geom_bar(stat = "identity") +
+       labs(x="word", y="Contribution to sentiment") + 
+       coord_flip()
+```
