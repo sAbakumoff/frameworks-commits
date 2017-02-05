@@ -1,1 +1,1 @@
-# frameworks-commits
+The data and reproducible research for the blog article "Angular vs React : text analysis of commit messages" at https://medium.com/@sAbakumoff/angular-vs-react-text-analysis-of-commit-messages-1cda199f3bdb#.ajwo71m19
